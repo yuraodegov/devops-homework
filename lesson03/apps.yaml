@@ -1,0 +1,81 @@
+# ==========================================
+# Superset - Pod
+# ==========================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: superset
+  labels:
+    app: superset            # label the Service uses to find this pod
+spec:
+  containers:
+    - name: superset
+      image: amancevice/superset
+      ports:
+        - containerPort: 8088   # Superset web UI
+      env:                       # NEW: environment variables
+        - name: APPLICATION
+          value: "superset"
+      resources:                 # NEW: CPU / memory
+        requests:                # guaranteed minimum
+          cpu: "250m"            # 1/4 core
+          memory: "250Mi"
+        limits:                  # hard maximum
+          cpu: "500m"            # 1/2 core
+          memory: "500Mi"
+---
+# ==========================================
+# Superset - Service (exposed outside the cluster)
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset-svc
+spec:
+  type: NodePort
+  selector:
+    app: superset            # must match the pod label above
+  ports:
+    - port: 8088             # service port
+      targetPort: 8088       # container port
+---
+# ==========================================
+# Airflow - Pod
+# ==========================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: airflow
+  labels:
+    app: airflow             # different label - so each Service finds only its own pod
+spec:
+  containers:
+    - name: airflow
+      image: puckel/docker-airflow
+      ports:
+        - containerPort: 8080   # Airflow web UI
+      env:                       # NEW: environment variables
+        - name: APPLICATION
+          value: "airflow"
+      resources:                 # NEW: CPU / memory
+        requests:
+          cpu: "250m"
+          memory: "250Mi"
+        limits:
+          cpu: "500m"
+          memory: "500Mi"
+---
+# ==========================================
+# Airflow - Service (exposed outside the cluster)
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-svc
+spec:
+  type: NodePort
+  selector:
+    app: airflow
+  ports:
+    - port: 8080
+      targetPort: 8080

@@ -1,0 +1,127 @@
+# ==========================================
+# Superset - Pod
+# ==========================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: superset
+  labels:
+    app: superset
+spec:
+  containers:
+    - name: superset
+      image: amancevice/superset
+      ports:
+        - containerPort: 8088
+      env:                                       # ONE env block with both variables
+        - name: APPLICATION
+          value: "superset"
+        - name: SUPERSET_SECRET_KEY              # BONUS: required since Superset 2.1
+          value: "H/8JBsg1LBj+p5/4LFRJbKvjpA4zPw/t02gaiVCVk3L7XcKsk3PZetPWy"
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "250Mi"
+        limits:
+          cpu: "1000m"           # BONUS: raised from 500m - faster startup
+          memory: "3Gi"          # BONUS: web server + init commands (db upgrade) need ~2.5GB
+---
+# ==========================================
+# Superset - Service (exposed outside the cluster)
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset-svc
+spec:
+  type: NodePort
+  selector:
+    app: superset
+  ports:
+    - port: 8088
+      targetPort: 8088
+---
+# ==========================================
+# Airflow - Pod
+# ==========================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: airflow
+  labels:
+    app: airflow
+spec:
+  containers:
+    - name: airflow
+      image: puckel/docker-airflow
+      ports:
+        - containerPort: 8080
+      env:
+        - name: APPLICATION
+          value: "airflow"
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "250Mi"
+        limits:
+          cpu: "1000m"           # BONUS: raised from 500m
+          memory: "1536Mi"       # BONUS: raised from 500Mi - 500Mi caused OOMKilled
+---
+# ==========================================
+# Airflow - Service (exposed outside the cluster)
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-svc
+spec:
+  type: NodePort
+  selector:
+    app: airflow
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+# ==========================================
+# BONUS: Postgres - Pod
+# ==========================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  containers:
+    - name: postgres
+      image: postgres:16-alpine
+      ports:
+        - containerPort: 5432    # standard Postgres port
+      env:
+        # Demo only - in real projects passwords go into a Kubernetes Secret
+        - name: POSTGRES_USER
+          value: "demo"
+        - name: POSTGRES_PASSWORD
+          value: "demo123"
+        - name: POSTGRES_DB
+          value: "demodb"
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+---
+# Postgres - Service: ClusterIP = reachable only inside the cluster (a DB must not be public)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

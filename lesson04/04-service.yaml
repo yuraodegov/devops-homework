@@ -1,0 +1,14 @@
+# Task 5: Service in front of the Nginx pods.
+# Only pods that pass the readiness probe are added to its endpoints.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-svc
+  namespace: homework4
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx
+  ports:
+    - port: 80
+      targetPort: 80

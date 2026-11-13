@@ -1,0 +1,63 @@
+# Nginx Deployment - final: PVC (Task 1) + ConfigMaps (Task 2) + liveness (Task 4) + readiness (Task 5)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: homework4
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          # Task 5: simulate a slow startup - wait 30s, then start nginx as usual
+          command: ["sh", "-c", "sleep 30; exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+          ports:
+            - containerPort: 80
+          # Task 5: the pod gets traffic only when port 80 accepts connections
+          readinessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Task 4: restart the container if /healthz stops answering
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            # Must be longer than the 30s startup delay, otherwise the liveness
+            # probe kills the container before nginx starts (CrashLoopBackOff)
+            initialDelaySeconds: 40
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Task 2: every key of the ConfigMap becomes an environment variable
+          envFrom:
+            - configMapRef:
+                name: nginx-env
+          volumeMounts:
+            # Task 1: web root stored on the PersistentVolume
+            - name: web-data
+              mountPath: /usr/share/nginx/html
+            # Task 2: default.conf from the ConfigMap replaces the image's config
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+      volumes:
+        - name: web-data
+          persistentVolumeClaim:
+            claimName: hw4-pvc
+        - name: nginx-conf
+          configMap:
+            name: nginx-conf

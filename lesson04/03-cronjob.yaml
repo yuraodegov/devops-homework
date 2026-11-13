@@ -1,0 +1,93 @@
+# Task 3: CronJob that logs the date every minute + sidecar that ships logs to a PV
+# Dedicated PersistentVolume for the logs (separate from the nginx web root)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: hw4-logs-pv
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /mnt/hw4-logs
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hw4-logs-pvc
+  namespace: homework4
+spec:
+  storageClassName: manual
+  # Bind explicitly to the logs PV, so it never grabs hw4-pv by mistake
+  volumeName: hw4-logs-pv
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: date-logger
+  namespace: homework4
+spec:
+  # Every minute
+  schedule: "* * * * *"
+  # Do not start a new run while the previous one is still running
+  concurrencyPolicy: Forbid
+  # Automatic cleanup of finished Jobs
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          initContainers:
+            # Native sidecar (restartPolicy: Always): starts before the main container
+            # and is stopped by Kubernetes automatically when the main container exits
+            - name: log-shipper
+              image: busybox:1.37
+              restartPolicy: Always
+              command: ["sh", "-c"]
+              args:
+                - |
+                  # sh runs as PID 1 and ignores SIGTERM by default:
+                  # exit cleanly when Kubernetes stops the sidecar
+                  trap 'exit 0' TERM
+                  touch /shared/date.log
+                  # Follow the shared log and append every new line to the PV
+                  tail -n +1 -F /shared/date.log >> /logs/cron.log &
+                  # wait can be interrupted by the signal, so the trap fires at once
+                  wait
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+                - name: logs
+                  mountPath: /logs
+          containers:
+            # Main container: writes the current date/time and exits
+            - name: date-writer
+              image: busybox:1.37
+              command: ["sh", "-c"]
+              args:
+                - |
+                  echo "$(date '+%Y-%m-%d %H:%M:%S') - hello from $HOSTNAME" >> /shared/date.log
+                  # Give the sidecar time to pick up the line (tail polls once a second)
+                  sleep 3
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+          volumes:
+            # Temporary directory shared by the containers of one pod
+            - name: shared
+              emptyDir: {}
+            # Persistent storage for the collected logs
+            - name: logs
+              persistentVolumeClaim:
+                claimName: hw4-logs-pvc

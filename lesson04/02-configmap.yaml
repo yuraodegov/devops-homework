@@ -1,0 +1,37 @@
+# Task 2: ConfigMaps for the Nginx deployment
+# 1) Environment variables - loaded into the container with envFrom
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-env
+  namespace: homework4
+data:
+  APP_NAME: "hw4-nginx"
+  APP_ENV: "homework"
+  APP_OWNER: "yura"
+---
+# 2) Nginx server config - mounted as a file into /etc/nginx/conf.d/
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+  namespace: homework4
+data:
+  default.conf: |
+    server {
+        listen       80;
+        server_name  localhost;
+
+        # Serve files from the PersistentVolume (Task 1)
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html;
+        }
+
+        # Health endpoint for the liveness probe (Task 4)
+        location /healthz {
+            access_log off;
+            default_type text/plain;
+            return 200 "ok\n";
+        }
+    }

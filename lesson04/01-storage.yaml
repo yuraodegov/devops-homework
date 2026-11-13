@@ -1,0 +1,33 @@
+# Task 1: static PersistentVolume (2Gi) + PersistentVolumeClaim (1Gi)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: hw4-pv
+  labels:
+    type: local
+spec:
+  # "manual" disables dynamic provisioning: the PVC binds only to a PV with the same class
+  storageClassName: manual
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  # Keep data on disk after the PVC is deleted
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    # Directory inside the node (desktop-worker container), created if missing
+    path: /mnt/hw4-data
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hw4-pvc
+  namespace: homework4
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

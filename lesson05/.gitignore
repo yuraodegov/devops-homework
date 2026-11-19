@@ -1,0 +1,4 @@
+# Build artifacts - the chart itself is stored on Docker Hub
+*.tgz
+# Chart pulled back from Docker Hub in Exercise 3 (a copy, not source)
+pulled/
